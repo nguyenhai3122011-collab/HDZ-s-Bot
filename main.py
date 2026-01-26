@@ -181,7 +181,7 @@ async def report(
         )
 
     add_log(f"Nhận report từ {interaction.user}")
-    await interaction.response.send_message("✅ Đã gửi report", ephemeral=True)
+    await interaction.response.send_message("✅ Đã gửi report tới admin, vui lòng đợi một chút thời gian...", ephemeral=True)
 
 # ===== RUN =====
 bot.run(TOKEN)
