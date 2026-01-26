@@ -48,23 +48,35 @@ async def send_log_task():
             time_vn = datetime.now(tz_vn)
 
             if log_queue:
-                content = log_queue.pop(0)
+                status_text = log_queue.pop(0)
             else:
-                content = "Hoạt động bình thường"
+                status_text = "Hoạt động bình thường"
 
             embed = discord.Embed(
-                title="📡 BOT STATUS LOG",
-                color=discord.Color.blue(),
-                timestamp=time_vn
+                title="📡 BOT LOG",
+                color=discord.Color.blue()
             )
-            embed.add_field(name="📄 Trạng thái", value=content, inline=False)
-            embed.add_field(name="📦 Version", value=BOT_VERSION, inline=True)
+
+            # ===== LOG NẰM NGANG =====
             embed.add_field(
-                name="🕒 Thời gian",
-                value=time_vn.strftime("%d/%m/%Y - %H:%M:%S"),
+                name="📄 Trạng thái",
+                value=status_text,
                 inline=True
             )
-            embed.set_footer(text=bot.user.name)
+            embed.add_field(
+                name="📦 Version",
+                value=BOT_VERSION,
+                inline=True
+            )
+            embed.add_field(
+                name="🕒 Thời gian",
+                value=time_vn.strftime("%H:%M:%S"),
+                inline=True
+            )
+
+            embed.set_footer(
+                text=time_vn.strftime("%d/%m/%Y • %Z")
+            )
 
             await channel.send(embed=embed)
 
@@ -72,6 +84,7 @@ async def send_log_task():
             print("Log error:", e)
 
         await asyncio.sleep(5)
+
 
 # ===== BOT READY =====
 @bot.event
