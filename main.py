@@ -12,7 +12,7 @@ TOKEN = os.getenv("TOKEN")
 BOT_VERSION = "1.5.0"
 
 ADMIN_CHANNEL_ID = 1464959634103341307
-BOT_CHANNEL_ID   = 1465282547444613175   # #bot-debug
+BOT_CHANNEL_ID   = 1464965527058387086   # #bot-debug
 
 ROLE_ADMIN_DZ_ID = 1401564562913759292
 ROLE_ADMIN2_ID   = 1413388479118835843
@@ -24,91 +24,68 @@ intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# ===== GLOBAL VAR =====
-bot_start_time = None
+# ===== GLOBAL =====
 debug_message_id = None
+status_logs = []
+MAX_LOGS = 20   # số dòng log hiển thị
 
 
-# ===== FORMAT UPTIME =====
-def format_uptime(seconds: int):
-    days, seconds = divmod(seconds, 86400)
-    hours, seconds = divmod(seconds, 3600)
-    minutes, seconds = divmod(seconds, 60)
+# ===== ADD LOG =====
+def add_log(text: str):
+    time_now = datetime.now().strftime("%d/%m/%Y - %H:%M:%S")
+    status_logs.append(f"[ {time_now} ] : {text}")
 
-    if days > 0:
-        return f"{days} ngày {hours} giờ {minutes} phút {seconds} giây"
-    if hours > 0:
-        return f"{hours} giờ {minutes} phút {seconds} giây"
-    if minutes > 0:
-        return f"{minutes} phút {seconds} giây"
-    return f"{seconds} giây"
+    if len(status_logs) > MAX_LOGS:
+        status_logs.pop(0)
 
 
-# ===== UPDATE BOT DEBUG MESSAGE =====
+# ===== UPDATE DEBUG MESSAGE (5s) =====
 async def update_debug_message():
     await bot.wait_until_ready()
-
     channel = bot.get_channel(BOT_CHANNEL_ID)
+
     if not channel:
-        print("Không tìm thấy kênh bot-debug")
+        print("❌ Không tìm thấy kênh bot-debug")
         return
 
     while not bot.is_closed():
         try:
+            add_log("Hoạt động")
+
             msg = await channel.fetch_message(debug_message_id)
 
-            uptime_seconds = int(
-                (datetime.now() - bot_start_time).total_seconds()
+            content = (
+                "🛠 **BOT DEBUG – TRẠNG THÁI HOẠT ĐỘNG**\n"
+                f"🔹 Phiên bản: **{BOT_VERSION}**\n\n"
             )
-            uptime_text = format_uptime(uptime_seconds)
+            content += "\n".join(status_logs)
 
-            await msg.edit(
-                content=
-                f"🛠 **BOT DEBUG**\n"
-                f"🔹 Phiên bản: **{BOT_VERSION}**\n"
-                f"⏱ Thời gian hoạt động: **{uptime_text}**\n"
-                f"🟢 Trạng thái: **Online**"
-            )
+            await msg.edit(content=content)
+
         except Exception as e:
-            print("Lỗi update debug:", e)
+            print("Debug update error:", e)
 
-        await asyncio.sleep(15)  # update mỗi 15 giây
+        await asyncio.sleep(5)
 
 
 # ===== BOT READY =====
 @bot.event
 async def on_ready():
-    global bot_start_time, debug_message_id
+    global debug_message_id
 
-    bot_start_time = datetime.now()
-
-    print(f"Bot đã đăng nhập: {bot.user}")
+    print(f"🤖 Bot đăng nhập: {bot.user}")
 
     try:
-        synced = await bot.tree.sync()
-        print(f"Đã sync {len(synced)} slash commands")
+        await bot.tree.sync()
+        print("✅ Slash commands synced")
     except Exception as e:
-        print("Sync error:", e)
+        print("❌ Sync error:", e)
 
-    # Thông báo admin
-    admin_channel = bot.get_channel(ADMIN_CHANNEL_ID)
-    if admin_channel:
-        await admin_channel.send(
-            f"🤖 **Bot đã khởi động thành công!**\n"
-            f"• Phiên bản: **{BOT_VERSION}**\n"
-            f"• Thời gian bắt đầu: **{bot_start_time.strftime('%d/%m/%Y - %H:%M:%S')}**\n"
-            f"• Bởi: **Nhatnhat0_0 hay @HDZ463**"
-        )
+    add_log("Bot khởi động thành công")
 
-    # Bot debug message (1 tin duy nhất)
     debug_channel = bot.get_channel(BOT_CHANNEL_ID)
     if debug_channel:
-        msg = await debug_channel.send(
-            f"🛠 **BOT DEBUG**\n"
-            f"🔹 Phiên bản: **{BOT_VERSION}**\n"
-            f"⏱ Thời gian hoạt động: **0 giây**\n"
-            f"🟢 Trạng thái: **Online**"
-        )
+        msg = await debug_channel.send("🛠 **BOT DEBUG – ĐANG KHỞI ĐỘNG...**")
         debug_message_id = msg.id
 
     bot.loop.create_task(update_debug_message())
@@ -119,6 +96,8 @@ async def on_ready():
 async def on_message(message):
     if message.author.bot:
         return
+
+    add_log(f"Nhận tin nhắn từ {message.author}: {message.content[:40]}")
 
     if message.content.lower() == "!hdinfo":
         await message.channel.send("👋 Chào bạn!")
@@ -149,6 +128,8 @@ async def report(
     ly_do: app_commands.Choice[str],
     ly_do_khac: str = None
 ):
+    add_log(f"Đã nhận /report từ {interaction.user}")
+
     if ly_do.value == "Khác" and not ly_do_khac:
         await interaction.response.send_message(
             "❌ Bạn chọn **Khác** nhưng chưa nhập lý do.",
@@ -193,13 +174,14 @@ async def report(
 @report.error
 async def report_error(interaction: discord.Interaction, error):
     if isinstance(error, app_commands.CommandOnCooldown):
+        add_log(f"Cooldown /report từ {interaction.user}")
         await interaction.response.send_message(
-            f"⏳ Vui lòng chờ **{int(error.retry_after)} giây** để report tiếp.",
+            f"⏳ Vui lòng chờ **{int(error.retry_after)} giây**.",
             ephemeral=True
         )
     else:
         raise error
 
 
-# ===== RUN BOT =====
+# ===== RUN =====
 bot.run(TOKEN)
