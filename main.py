@@ -1,6 +1,8 @@
 import os
 import asyncio
 import discord
+import time
+import psutil
 from discord import app_commands
 from discord.ext import commands
 from datetime import datetime
@@ -8,13 +10,15 @@ import pytz
 
 # ===== CONFIG =====
 TOKEN = os.getenv("TOKEN")
-BOT_VERSION = "1.5.0"
+BOT_VERSION = "1.6.0"
 
 ADMIN_CHANNEL_ID = 1464959634103341307
 LOG_CHANNEL_ID   = 1465282547444613175
 
 ROLE_ADMIN_DZ_ID = 1401564562913759292
 ROLE_ADMIN2_ID   = 1413388479118835843
+
+START_TIME = time.time()
 
 # ===== INTENTS =====
 intents = discord.Intents.default()
@@ -27,25 +31,43 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 log_queue: list[str] = []
 
 def add_log(text: str):
-    time_now = datetime.now().strftime("%d/%m/%Y - %H:%M:%S")
-    log_queue.append(f"[ {time_now} ] : {text}")
+    log_queue.append(text)
 
-# ===== SEND LOG EVERY 5s (NEW MESSAGE) =====
+# ===== SEND LOG EMBED EVERY 5s =====
 async def send_log_task():
     await bot.wait_until_ready()
     channel = bot.get_channel(LOG_CHANNEL_ID)
 
-    if channel is None:
+    if not channel:
         print("❌ Không tìm thấy kênh log")
         return
 
     while not bot.is_closed():
         try:
+            tz_vn = pytz.timezone("Asia/Ho_Chi_Minh")
+            time_vn = datetime.now(tz_vn)
+
             if log_queue:
-                await channel.send(log_queue.pop(0))
+                content = log_queue.pop(0)
             else:
-                time_now = datetime.now().strftime("%d/%m/%Y - %H:%M:%S")
-                await channel.send(f"[ {time_now} ] : Hoạt động")
+                content = "Hoạt động bình thường"
+
+            embed = discord.Embed(
+                title="📡 BOT STATUS LOG",
+                color=discord.Color.blue(),
+                timestamp=time_vn
+            )
+            embed.add_field(name="📄 Trạng thái", value=content, inline=False)
+            embed.add_field(name="📦 Version", value=BOT_VERSION, inline=True)
+            embed.add_field(
+                name="🕒 Thời gian",
+                value=time_vn.strftime("%d/%m/%Y - %H:%M:%S"),
+                inline=True
+            )
+            embed.set_footer(text=bot.user.name)
+
+            await channel.send(embed=embed)
+
         except Exception as e:
             print("Log error:", e)
 
@@ -55,15 +77,8 @@ async def send_log_task():
 @bot.event
 async def on_ready():
     print(f"🤖 Bot đăng nhập: {bot.user}")
-
-    try:
-        await bot.tree.sync()
-        print("✅ Slash commands synced")
-    except Exception as e:
-        print("❌ Sync error:", e)
-
-    add_log(f"Bot khởi động | Version {BOT_VERSION}")
-
+    await bot.tree.sync()
+    add_log("Bot khởi động thành công")
     asyncio.create_task(send_log_task())
 
 # ===== MESSAGE EVENT =====
@@ -72,17 +87,39 @@ async def on_message(message: discord.Message):
     if message.author.bot:
         return
 
-    add_log(f"Nhận tin nhắn từ {message.author}: {message.content[:40]}")
-
+    add_log(f"Nhận tin nhắn từ {message.author} | {message.content[:40]}")
     await bot.process_commands(message)
+
+# ===== SLASH COMMAND: STATUS =====
+@bot.tree.command(name="status", description="Xem trạng thái bot")
+async def status(interaction: discord.Interaction):
+    uptime = int(time.time() - START_TIME)
+    mem = psutil.Process(os.getpid()).memory_info().rss / 1024 / 1024
+
+    embed = discord.Embed(
+        title="🤖 TRẠNG THÁI BOT",
+        color=discord.Color.green()
+    )
+    embed.add_field(name="📦 Version", value=BOT_VERSION, inline=False)
+    embed.add_field(name="⏱ Uptime", value=f"{uptime}s", inline=False)
+    embed.add_field(name="📊 Server", value=len(bot.guilds), inline=False)
+    embed.add_field(
+        name="👥 Tổng member",
+        value=sum(g.member_count for g in bot.guilds),
+        inline=False
+    )
+    embed.add_field(name="🧠 RAM", value=f"{mem:.2f} MB", inline=False)
+    embed.add_field(name="📡 Ping", value=f"{round(bot.latency*1000)} ms", inline=False)
+
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 # ===== SLASH COMMAND: REPORT =====
 @bot.tree.command(name="report", description="Tố cáo thành viên vi phạm")
 @app_commands.checks.cooldown(1, 60.0, key=lambda i: i.user.id)
 @app_commands.describe(
-    nguoi_vi_pham="Chọn người vi phạm",
-    ly_do="Lý do vi phạm",
-    ly_do_khac="Lý do khác (nếu có)"
+    nguoi_vi_pham="Người vi phạm",
+    ly_do="Lý do",
+    ly_do_khac="Lý do khác"
 )
 @app_commands.choices(ly_do=[
     app_commands.Choice(name="Spam", value="Spam"),
@@ -97,11 +134,9 @@ async def report(
     ly_do: app_commands.Choice[str],
     ly_do_khac: str | None = None
 ):
-    add_log(f"/report từ {interaction.user}")
-
     if ly_do.value == "Khác" and not ly_do_khac:
         await interaction.response.send_message(
-            "❌ Chọn **Khác** nhưng chưa nhập lý do.",
+            "❌ Chưa nhập lý do khác",
             ephemeral=True
         )
         return
@@ -111,13 +146,18 @@ async def report(
     time_vn = datetime.now(tz_vn)
 
     embed = discord.Embed(
-        title="📩 THƯ TỐ CÁO",
+        title="🚨 TỐ CÁO VI PHẠM",
         color=discord.Color.red(),
         timestamp=time_vn
     )
-    embed.add_field(name="👤 Người gửi", value=interaction.user.mention)
-    embed.add_field(name="⚠ Người vi phạm", value=nguoi_vi_pham.mention)
-    embed.add_field(name="📄 Lý do", value=reason)
+    embed.add_field(name="👤 Người gửi", value=interaction.user.mention, inline=False)
+    embed.add_field(name="⚠ Người vi phạm", value=nguoi_vi_pham.mention, inline=False)
+    embed.add_field(name="📄 Lý do", value=reason, inline=False)
+    embed.add_field(
+        name="🕒 Thời gian",
+        value=time_vn.strftime("%d/%m/%Y - %H:%M:%S"),
+        inline=False
+    )
     embed.set_thumbnail(url=nguoi_vi_pham.display_avatar.url)
 
     admin_channel = bot.get_channel(ADMIN_CHANNEL_ID)
@@ -127,76 +167,8 @@ async def report(
             embed=embed
         )
 
-    await interaction.response.send_message(
-        "✅ Đã gửi tố cáo đến admin.",
-        ephemeral=True
-    )
-
-# ===== REPORT ERROR =====
-@report.error
-async def report_error(interaction: discord.Interaction, error):
-    if isinstance(error, app_commands.CommandOnCooldown):
-        add_log(f"Cooldown /report từ {interaction.user}")
-        await interaction.response.send_message(
-            f"⏳ Chờ **{int(error.retry_after)}s**.",
-            ephemeral=True
-        )
-    else:
-        raise error
-
-# ===== SLASH COMMAND: CLEAR =====
-@bot.tree.command(name="clear", description="(Admin Dz) Làm sạch kênh")
-@app_commands.describe(channel_id="ID kênh cần clear")
-async def clear(interaction: discord.Interaction, channel_id: str):
-    if not any(r.id == ROLE_ADMIN_DZ_ID for r in interaction.user.roles):
-        await interaction.response.send_message(
-            "❌ Bạn không có quyền.",
-            ephemeral=True
-        )
-        return
-
-    channel = bot.get_channel(int(channel_id))
-    if channel is None:
-        await interaction.response.send_message(
-            "❌ ID kênh không hợp lệ.",
-            ephemeral=True
-        )
-        return
-
-    await interaction.response.send_message(
-        f"🧹 Đang làm sạch {channel.mention}...",
-        ephemeral=True
-    )
-
-    deleted = skipped = 0
-
-    async for msg in channel.history(limit=None):
-        try:
-            if msg.author.bot:
-                skipped += 1
-                continue
-
-            if isinstance(msg.author, discord.Member):
-                if any(r.id == ROLE_ADMIN_DZ_ID for r in msg.author.roles):
-                    skipped += 1
-                    continue
-
-            await msg.delete()
-            deleted += 1
-            await asyncio.sleep(0.4)
-
-        except Exception:
-            skipped += 1
-
-    add_log(
-        f"Admin Dz {interaction.user} clear {channel.name} | "
-        f"Xóa {deleted} | Bỏ qua {skipped}"
-    )
-
-    await interaction.followup.send(
-        f"✅ Xong!\n🗑 Xóa: **{deleted}**\n🛑 Bỏ qua: **{skipped}**",
-        ephemeral=True
-    )
+    add_log(f"Nhận report từ {interaction.user}")
+    await interaction.response.send_message("✅ Đã gửi report", ephemeral=True)
 
 # ===== RUN =====
 bot.run(TOKEN)
