@@ -163,6 +163,79 @@ async def report_error(interaction: discord.Interaction, error):
     else:
         raise error
 
+# ===== SLASH COMMAND: CLEAR CHANNEL =====
+@bot.tree.command(
+    name="clear",
+    description="(Admin Dz) Xóa sạch tin nhắn trong kênh (trừ Admin Dz)"
+)
+@app_commands.describe(
+    channel_id="ID kênh cần làm sạch"
+)
+async def clear_channel(
+    interaction: discord.Interaction,
+    channel_id: str
+):
+    # ===== CHECK ROLE ADMIN DZ =====
+    member = interaction.user
+    if not any(role.id == ROLE_ADMIN_DZ_ID for role in member.roles):
+        await interaction.response.send_message(
+            "❌ Bạn không có quyền sử dụng lệnh này.",
+            ephemeral=True
+        )
+        return
+
+    # ===== GET CHANNEL =====
+    try:
+        channel = bot.get_channel(int(channel_id))
+        if channel is None:
+            raise ValueError
+    except:
+        await interaction.response.send_message(
+            "❌ ID kênh không hợp lệ.",
+            ephemeral=True
+        )
+        return
+
+    await interaction.response.send_message(
+        f"🧹 Đang làm sạch kênh {channel.mention}...",
+        ephemeral=True
+    )
+
+    deleted = 0
+    skipped = 0
+
+    # ===== DELETE MESSAGE =====
+    async for msg in channel.history(limit=None):
+        try:
+            # Bỏ qua bot
+            if msg.author.bot:
+                skipped += 1
+                continue
+
+            # Bỏ qua Admin Dz
+            if isinstance(msg.author, discord.Member):
+                if any(role.id == ROLE_ADMIN_DZ_ID for role in msg.author.roles):
+                    skipped += 1
+                    continue
+
+            await msg.delete()
+            deleted += 1
+            await asyncio.sleep(0.4)  # tránh rate limit
+
+        except Exception:
+            skipped += 1
+
+    add_log(
+        f"Admin Dz {interaction.user} đã clear kênh {channel.name} | "
+        f"Xóa: {deleted}, Bỏ qua: {skipped}"
+    )
+
+    await interaction.followup.send(
+        f"✅ **Hoàn tất làm sạch kênh {channel.mention}**\n"
+        f"🗑 Đã xóa: **{deleted}** tin nhắn\n"
+        f"🛑 Bỏ qua (Admin Dz/Bot): **{skipped}**",
+        ephemeral=True
+    )
 
 # ===== RUN =====
 bot.run(TOKEN)
