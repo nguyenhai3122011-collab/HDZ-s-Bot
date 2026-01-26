@@ -12,7 +12,7 @@ TOKEN = os.getenv("TOKEN")
 BOT_VERSION = "1.5.0"
 
 ADMIN_CHANNEL_ID = 1464959634103341307
-BOT_CHANNEL_ID   = 1464965527058387086   # #bot-debug
+LOG_CHANNEL_ID   = 1465282547444613175   # kênh log mới
 
 ROLE_ADMIN_DZ_ID = 1401564562913759292
 ROLE_ADMIN2_ID   = 1413388479118835843
@@ -24,46 +24,34 @@ intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# ===== GLOBAL =====
-debug_message_id = None
-status_logs = []
-MAX_LOGS = 20   # số dòng log hiển thị
+# ===== LOG QUEUE =====
+log_queue = []
 
 
 # ===== ADD LOG =====
 def add_log(text: str):
     time_now = datetime.now().strftime("%d/%m/%Y - %H:%M:%S")
-    status_logs.append(f"[ {time_now} ] : {text}")
-
-    if len(status_logs) > MAX_LOGS:
-        status_logs.pop(0)
+    log_queue.append(f"[ {time_now} ] : {text}")
 
 
-# ===== UPDATE DEBUG MESSAGE (5s) =====
-async def update_debug_message():
+# ===== SEND LOG EVERY 5s (NEW MESSAGE) =====
+async def send_log_task():
     await bot.wait_until_ready()
-    channel = bot.get_channel(BOT_CHANNEL_ID)
+    channel = bot.get_channel(LOG_CHANNEL_ID)
 
     if not channel:
-        print("❌ Không tìm thấy kênh bot-debug")
+        print("❌ Không tìm thấy kênh log")
         return
 
     while not bot.is_closed():
         try:
-            add_log("Hoạt động")
-
-            msg = await channel.fetch_message(debug_message_id)
-
-            content = (
-                "🛠 **BOT DEBUG – TRẠNG THÁI HOẠT ĐỘNG**\n"
-                f"🔹 Phiên bản: **{BOT_VERSION}**\n\n"
-            )
-            content += "\n".join(status_logs)
-
-            await msg.edit(content=content)
-
+            if log_queue:
+                await channel.send(log_queue.pop(0))
+            else:
+                time_now = datetime.now().strftime("%d/%m/%Y - %H:%M:%S")
+                await channel.send(f"[ {time_now} ] : Hoạt động")
         except Exception as e:
-            print("Debug update error:", e)
+            print("Log error:", e)
 
         await asyncio.sleep(5)
 
@@ -71,8 +59,6 @@ async def update_debug_message():
 # ===== BOT READY =====
 @bot.event
 async def on_ready():
-    global debug_message_id
-
     print(f"🤖 Bot đăng nhập: {bot.user}")
 
     try:
@@ -83,12 +69,7 @@ async def on_ready():
 
     add_log("Bot khởi động thành công")
 
-    debug_channel = bot.get_channel(BOT_CHANNEL_ID)
-    if debug_channel:
-        msg = await debug_channel.send("🛠 **BOT DEBUG – ĐANG KHỞI ĐỘNG...**")
-        debug_message_id = msg.id
-
-    bot.loop.create_task(update_debug_message())
+    bot.loop.create_task(send_log_task())
 
 
 # ===== MESSAGE EVENT =====
