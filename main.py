@@ -216,5 +216,44 @@ async def report(
     add_log(f"Nhận report từ {interaction.user}")
     await interaction.response.send_message("✅ Đã gửi report tới admin, vui lòng đợi một chút thời gian...", ephemeral=True)
 
+# ===== SLASH COMMAND: GET INVITE (COPY MESSAGE) =====
+@bot.tree.command(name="getinvite", description="Lấy mã QR vào máy chủ")
+async def getinvite(interaction: discord.Interaction):
+    MESSAGE_ID = 1465592216427692078
+
+    try:
+        # Lấy message theo ID (duyệt qua các kênh text)
+        target_message = None
+        for channel in interaction.guild.text_channels:
+            try:
+                msg = await channel.fetch_message(MESSAGE_ID)
+                target_message = msg
+                break
+            except:
+                continue
+
+        if not target_message:
+            await interaction.response.send_message(
+                "❌ Không tìm thấy tin nhắn mã QR",
+                ephemeral=True
+            )
+            return
+
+        # Reply lại đúng nội dung cũ
+        await interaction.response.send_message(
+            content=target_message.content if target_message.content else None,
+            embeds=target_message.embeds,
+            files=[await a.to_file() for a in target_message.attachments]
+        )
+
+        add_log(f"Get invite QR bởi {interaction.user}")
+
+    except Exception as e:
+        await interaction.response.send_message(
+            "❌ Lỗi khi lấy mã QR",
+            ephemeral=True
+        )
+        print("GetInvite error:", e)
+
 # ===== RUN =====
 bot.run(TOKEN)
