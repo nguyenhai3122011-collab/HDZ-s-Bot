@@ -219,45 +219,63 @@ async def report(
 
     add_log(f"Nhận report từ {interaction.user}")
     await interaction.response.send_message("✅ Đã gửi report tới admin, vui lòng đợi một chút thời gian...", ephemeral=True)
-
-# ===== SLASH COMMAND: GET INVITE (COPY MESSAGE) =====
+#=======get invite ===========
 @bot.tree.command(name="getinvite", description="Lấy mã QR vào máy chủ")
 async def getinvite(interaction: discord.Interaction):
-    MESSAGE_ID = 1465592216427692078
+    CHANNEL_ID = 1465592216427692078   # ⚠️ ID KÊNH CHỨA QR
+    MESSAGE_ID = 1465592216427692078   # ID TIN NHẮN QR
 
-    try:
-        # Lấy message theo ID (duyệt qua các kênh text)
-        target_message = None
-        for channel in interaction.guild.text_channels:
-            try:
-                msg = await channel.fetch_message(MESSAGE_ID)
-                target_message = msg
-                break
-            except:
-                continue
-
-        if not target_message:
-            await interaction.response.send_message(
-                "❌ Không tìm thấy tin nhắn mã QR",
-                ephemeral=True
-            )
-            return
-
-        # Reply lại đúng nội dung cũ
+    channel = interaction.guild.get_channel(CHANNEL_ID)
+    if not channel:
         await interaction.response.send_message(
-            content=target_message.content if target_message.content else None,
-            embeds=target_message.embeds,
-            files=[await a.to_file() for a in target_message.attachments]
-        )
-
-        add_log(f"Get invite QR bởi {interaction.user}")
-
-    except Exception as e:
-        await interaction.response.send_message(
-            "❌ Lỗi khi lấy mã QR",
+            "❌ Không tìm thấy kênh chứa mã QR",
             ephemeral=True
         )
-        print("GetInvite error:", e)
+        return
+
+    try:
+        msg = await channel.fetch_message(MESSAGE_ID)
+
+        await interaction.response.send_message(
+            content=msg.content or None,
+            embeds=msg.embeds,
+            files=[await a.to_file() for a in msg.attachments]
+        )
+
+        add_log(f"Get invite bởi {interaction.user}")
+
+    except discord.Forbidden:
+        await interaction.response.send_message(
+            "❌ Bot không có quyền đọc lịch sử tin nhắn",
+            ephemeral=True
+        )
+    except discord.NotFound:
+        await interaction.response.send_message(
+            "❌ Không tìm thấy tin nhắn QR",
+            ephemeral=True
+        )
+
+
+#======= Getserveravt ==========
+@bot.tree.command(name="getserveravt", description="Lấy logo (avatar) máy chủ")
+async def getserveravt(interaction: discord.Interaction):
+    guild = interaction.guild
+
+    if not guild or not guild.icon:
+        await interaction.response.send_message(
+            "❌ Máy chủ này chưa có logo",
+            ephemeral=True
+        )
+        return
+
+    embed = discord.Embed(
+        title=f"🖼 Logo máy chủ: {guild.name}",
+        color=discord.Color.blue()
+    )
+    embed.set_image(url=guild.icon.url)
+
+    add_log(f"Get server avatar bởi {interaction.user}")
+    await interaction.response.send_message(embed=embed)
 
 # ===== RUN =====
 bot.run(TOKEN)
