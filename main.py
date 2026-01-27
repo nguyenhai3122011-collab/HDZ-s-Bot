@@ -93,9 +93,14 @@ async def send_log_task():
 @bot.event
 async def on_ready():
     print(f"🤖 Bot đăng nhập: {bot.user}")
-    await bot.tree.sync()
+
+    guild = discord.Object(id=GUILD_ID)
+    bot.tree.copy_global_to(guild=guild)
+    await bot.tree.sync(guild=guild)  # ⚡ hiện ngay
+
     add_log("Bot khởi động thành công")
     asyncio.create_task(send_log_task())
+
 # ===== MEMBER JOIN EVENT =====
 @bot.event
 async def on_member_join(member: discord.Member):
