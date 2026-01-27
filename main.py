@@ -89,15 +89,21 @@ async def send_log_task():
         await asyncio.sleep(5)
 
 
-# ===== BOT READY =====
+@bot.event
+async def setup_hook():
+    bot.tree.clear_commands(guild=None)  # 🔥 XÓA TOÀN BỘ LỆNH CŨ
+
+
+#====== onready ========
 @bot.event
 async def on_ready():
     print(f"🤖 Bot đăng nhập: {bot.user}")
 
-    await bot.tree.sync()  # sync global bình thường
+    await bot.tree.sync()  # đăng ký lại TẤT CẢ lệnh
 
     add_log("Bot khởi động thành công")
     asyncio.create_task(send_log_task())
+
 
 
 # ===== MEMBER JOIN EVENT =====
