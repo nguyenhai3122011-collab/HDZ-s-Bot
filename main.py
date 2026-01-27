@@ -10,7 +10,10 @@ import pytz
 
 # ===== CONFIG =====
 TOKEN = os.getenv("TOKEN")
-BOT_VERSION = "1.6.0"
+BOT_VERSION = "1.6.2"
+
+WELCOME_CHANNEL_ID = 1401557421591236684   # ID kênh #welcome
+ROLE_MEMBER_ID    = 1401565144156340417   # ID role @member
 
 ADMIN_CHANNEL_ID = 1464959634103341307
 LOG_CHANNEL_ID   = 1465282547444613175
@@ -93,6 +96,36 @@ async def on_ready():
     await bot.tree.sync()
     add_log("Bot khởi động thành công")
     asyncio.create_task(send_log_task())
+# ===== MEMBER JOIN EVENT =====
+@bot.event
+async def on_member_join(member: discord.Member):
+    # ===== ADD ROLE MEMBER =====
+    role = member.guild.get_role(ROLE_MEMBER_ID)
+    if role:
+        try:
+            await member.add_roles(role, reason="Tự động cấp role member")
+        except Exception as e:
+            print("Lỗi cấp role:", e)
+
+    # ===== SEND WELCOME MESSAGE =====
+    channel = bot.get_channel(WELCOME_CHANNEL_ID)
+    if channel:
+        embed = discord.Embed(
+            title="🎉 Chào mừng thành viên mới!",
+            description=(
+                f"Xin chào {member.mention} 👋\n\n"
+                "Chào mừng bạn đến với server 💖\n"
+                "📌 Nhớ đọc **#rules** và chúc bạn chơi vui vẻ nha!"
+            ),
+            color=discord.Color.green()
+        )
+
+        embed.set_thumbnail(url=member.display_avatar.url)
+        embed.set_footer(text=f"Member thứ #{member.guild.member_count}")
+
+        await channel.send(embed=embed)
+
+    add_log(f"Member mới: {member} | Đã cấp role member")
 
 # ===== MESSAGE EVENT =====
 @bot.event
