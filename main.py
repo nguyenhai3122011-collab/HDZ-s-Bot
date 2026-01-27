@@ -89,9 +89,6 @@ async def send_log_task():
         await asyncio.sleep(5)
 
 
-@bot.event
-async def setup_hook():
-    bot.tree.clear_commands(guild=None)  # 🔥 XÓA TOÀN BỘ LỆNH CŨ
 
 
 #====== onready ========
@@ -228,21 +225,20 @@ async def report(
 #=======get invite ===========
 @bot.tree.command(name="getinvite", description="Lấy mã QR vào máy chủ")
 async def getinvite(interaction: discord.Interaction):
-    CHANNEL_ID = 1405849725361717309   # ⚠️ ID KÊNH CHỨA QR
-    MESSAGE_ID = 1465592216427692078   # ID TIN NHẮN QR
+    await interaction.response.defer()  # 🔥 RẤT QUAN TRỌNG
+
+    CHANNEL_ID = 1405849725361717309
+    MESSAGE_ID = 1465592216427692078
 
     channel = interaction.guild.get_channel(CHANNEL_ID)
     if not channel:
-        await interaction.response.send_message(
-            "❌ Không tìm thấy kênh chứa mã QR",
-            ephemeral=True
-        )
+        await interaction.followup.send("❌ Không tìm thấy kênh chứa mã QR")
         return
 
     try:
         msg = await channel.fetch_message(MESSAGE_ID)
 
-        await interaction.response.send_message(
+        await interaction.followup.send(
             content=msg.content or None,
             embeds=msg.embeds,
             files=[await a.to_file() for a in msg.attachments]
@@ -251,15 +247,9 @@ async def getinvite(interaction: discord.Interaction):
         add_log(f"Get invite bởi {interaction.user}")
 
     except discord.Forbidden:
-        await interaction.response.send_message(
-            "❌ Bot không có quyền đọc lịch sử tin nhắn",
-            ephemeral=True
-        )
+        await interaction.followup.send("❌ Bot không có quyền đọc lịch sử tin nhắn")
     except discord.NotFound:
-        await interaction.response.send_message(
-            "❌ Không tìm thấy tin nhắn QR",
-            ephemeral=True
-        )
+        await interaction.followup.send("❌ Không tìm thấy tin nhắn QR")
 
 
 #======= Getserveravt ==========
