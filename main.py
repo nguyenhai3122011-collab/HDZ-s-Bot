@@ -222,7 +222,7 @@ async def report(
 #=======get invite ===========
 @bot.tree.command(name="getinvite", description="Lấy mã QR vào máy chủ")
 async def getinvite(interaction: discord.Interaction):
-    CHANNEL_ID = 1465592216427692078   # ⚠️ ID KÊNH CHỨA QR
+    CHANNEL_ID = 1405849725361717309   # ⚠️ ID KÊNH CHỨA QR
     MESSAGE_ID = 1465592216427692078   # ID TIN NHẮN QR
 
     channel = interaction.guild.get_channel(CHANNEL_ID)
