@@ -28,6 +28,10 @@ VOICE_CATEGORY_ID      = 1466430627485057050
 VOICE_COOLDOWN = 120  # 2 phút
 user_voice_cooldown = {}
 
+VOICE_USER_LIMIT = 5  # giới hạn số người trong voice
+
+created_voice_owner = {}  # voice_id : user_id
+
 # ===== INTENTS =====
 intents = discord.Intents.default()
 intents.members = True
@@ -140,27 +144,33 @@ async def on_member_join(member: discord.Member):
     add_log(f"Member mới: {member} | Đã cấp role member")
 
 # ===== MESSAGE EVENT =====
+# ===== MESSAGE EVENT =====
 @bot.event
 async def on_message(message: discord.Message):
     if message.author.bot:
         return
 
     add_log(f"Nhận tin nhắn từ {message.author} | {message.content[:40]}")
-        # ===== CREATE VOICE =====
+
+    # ===== CREATE VOICE =====
     if message.channel.id == CREATE_VOICE_CHANNEL_ID:
         if message.content.startswith("/CreateVoice"):
             now = time.time()
 
-            # Cooldown
+            # Cooldown theo người
             last = user_voice_cooldown.get(message.author.id, 0)
             if now - last < VOICE_COOLDOWN:
                 remain = int(VOICE_COOLDOWN - (now - last))
-                await message.reply(f"⏳ Bạn phải đợi **{remain}s** nữa mới được tạo voice tiếp!")
+                await message.reply(
+                    f"⏳ Bạn phải đợi **{remain}s** nữa mới được tạo voice tiếp!"
+                )
                 return
 
             args = message.content.split()
             if len(args) < 2:
-                await message.reply("❌ Cú pháp: `/CreateVoice <TênVoice> [ALL | danh sách tên]`")
+                await message.reply(
+                    "❌ Cú pháp: `/CreateVoice <TênVoice> [ALL | danh sách tên]`"
+                )
                 return
 
             voice_name = args[1]
@@ -173,36 +183,57 @@ async def on_message(message: discord.Message):
                 await message.reply("❌ Không tìm thấy danh mục voice")
                 return
 
+            # ===== PERMISSION =====
             overwrites = {
                 guild.default_role: discord.PermissionOverwrite(connect=False)
             }
 
             # Người tạo luôn có quyền
-            overwrites[message.author] = discord.PermissionOverwrite(connect=True, manage_channels=True)
+            overwrites[message.author] = discord.PermissionOverwrite(
+                connect=True,
+                manage_channels=True
+            )
 
             if allow_args:
                 if allow_args[0].upper() == "ALL":
-                    overwrites[guild.default_role] = discord.PermissionOverwrite(connect=True)
+                    overwrites[guild.default_role] = discord.PermissionOverwrite(
+                        connect=True
+                    )
                 else:
                     for member in guild.members:
                         if member.name in allow_args:
-                            overwrites[member] = discord.PermissionOverwrite(connect=True)
+                            overwrites[member] = discord.PermissionOverwrite(
+                                connect=True
+                            )
 
+            # ===== CREATE VOICE =====
             voice = await guild.create_voice_channel(
                 name=voice_name,
                 category=category,
-                overwrites=overwrites
+                overwrites=overwrites,
+                user_limit=VOICE_USER_LIMIT
             )
 
+            created_voice_owner[voice.id] = message.author.id
             user_voice_cooldown[message.author.id] = now
 
-            await message.reply(f"🎧 Đã tạo voice **{voice.name}**")
+            # 👉 Move người tạo vào voice
+            try:
+                await message.author.move_to(voice)
+            except:
+                pass
+
+            await message.reply(
+                f"🎧 Đã tạo voice **{voice.name}**\n"
+                f"👥 Giới hạn: {VOICE_USER_LIMIT} người"
+            )
+
             add_log(f"{message.author} tạo voice {voice.name}")
 
             asyncio.create_task(auto_delete_voice(voice))
 
     await bot.process_commands(message)
-    
+
 
 # ===== SLASH COMMAND: STATUS =====
 @bot.tree.command(name="status", description="Xem trạng thái bot")
@@ -342,9 +373,25 @@ async def auto_delete_voice(channel: discord.VoiceChannel):
 
     try:
         await channel.delete(reason="Voice trống quá 30s")
+        created_voice_owner.pop(channel.id, None)
         add_log(f"Auto delete voice: {channel.name}")
     except:
         pass
+# update status
+@bot.event
+async def on_voice_state_update(member, before, after):
+    # Người rời voice
+    if before.channel and before.channel.id in created_voice_owner:
+        owner_id = created_voice_owner.get(before.channel.id)
+
+        # Nếu là người tạo voice rời
+        if member.id == owner_id:
+            try:
+                await before.channel.delete(reason="Owner rời voice")
+                created_voice_owner.pop(before.channel.id, None)
+                add_log(f"Owner rời → Xóa voice {before.channel.name}")
+            except:
+                pass
 
 # ===== RUN =====
 bot.run(TOKEN)
