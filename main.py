@@ -151,6 +151,17 @@ async def on_message(message: discord.Message):
         return
 
     add_log(f"Nhận tin nhắn từ {message.author} | {message.content[:40]}")
+    # ===== RESET COOLDOWN (ADMIN DZ) =====
+    if message.content.strip() == "/resettime":
+        if not any(r.id == ROLE_ADMIN_DZ_ID for r in message.author.roles):
+            await message.reply("❌ Bạn không có quyền dùng lệnh này")
+            return
+
+        user_voice_cooldown.clear()
+
+        await message.reply("⏱️ Đã reset thời gian tạo voice cho **tất cả mọi người**")
+        add_log(f"Admin {message.author} reset cooldown voice")
+        return
 
     # ===== CREATE VOICE =====
     if message.channel.id == CREATE_VOICE_CHANNEL_ID:
@@ -213,6 +224,15 @@ async def on_message(message: discord.Message):
                 overwrites=overwrites,
                 user_limit=VOICE_USER_LIMIT
             )
+            # 👉 Move người tạo vào voice (an toàn)
+            if message.author.voice:
+                await message.author.move_to(voice)
+            else:
+                try:
+                    await message.author.move_to(voice)
+                except:
+                    pass
+
 
             created_voice_owner[voice.id] = message.author.id
             user_voice_cooldown[message.author.id] = now
