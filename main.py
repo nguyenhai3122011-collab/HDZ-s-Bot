@@ -10,7 +10,7 @@ import pytz
 
 # ===== CONFIG =====
 TOKEN = os.getenv("TOKEN")
-BOT_VERSION = "1.6.2"
+BOT_VERSION = "1.6.3"
 
 WELCOME_CHANNEL_ID = 1401557421591236684   # ID kênh #welcome
 ROLE_MEMBER_ID    = 1401565144156340417   # ID role @member
