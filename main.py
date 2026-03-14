@@ -7,7 +7,22 @@ from discord import app_commands
 from discord.ext import commands
 from datetime import datetime
 import pytz
+from flask import Flask
+from threading import Thread
 
+# Tạo server giả để Render không tắt bot
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Bot đang chạy 24/7!"
+
+def run_web():
+    app.run(host='0.0.0.0', port=8080)
+
+def keep_alive():
+    t = Thread(target=run_web)
+    t.start()
 # ===== CONFIG =====
 TOKEN = os.getenv("TOKEN")
 BOT_VERSION = "1.6.3"
