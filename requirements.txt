@@ -1,4 +1,4 @@
-discord.py==2.4.0
-pytz
-psutil
+discord.py
 flask
+psutil
+pytz
